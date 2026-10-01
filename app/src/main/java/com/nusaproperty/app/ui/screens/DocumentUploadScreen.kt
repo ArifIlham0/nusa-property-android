@@ -596,7 +596,7 @@ fun DocumentCard(
     icon: ImageVector,
     title: String,
     subtitle: String,
-    status: DocumentStatus,
+    status: DocumentStatus? = DocumentStatus.REQUIRED,
     statusLabel: String,
     fileName: String? = null,
     fileSubtitle: String? = null,

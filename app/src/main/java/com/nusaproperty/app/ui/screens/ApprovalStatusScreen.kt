@@ -511,7 +511,7 @@ fun ApprovalStatusScreen(
                         val stepStatus = when (step.status) {
                             StepStatus.COMPLETED -> StepStatusType.FINISHED
                             StepStatus.ACTIVE -> StepStatusType.ACTIVE
-                            StepStatus.UPCOMING -> StepStatusType.UPCOMING
+                            StepStatus.UPCOMING, null -> StepStatusType.UPCOMING
                         }
                         TimelineStepRow(
                             stepNumber = step.stepNumber,

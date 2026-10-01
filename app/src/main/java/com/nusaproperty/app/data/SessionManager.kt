@@ -26,7 +26,9 @@ class SessionManager(context: Context) {
         }
     }
 
-    fun saveSession(token: String, user: UserData) {
+    fun saveSession(token: String?, user: UserData?) {
+        if (token.isNullOrBlank() || user == null) return
+
         prefs.edit()
             .putString(KEY_TOKEN, token)
             .putString(KEY_USER, gson.toJson(user))

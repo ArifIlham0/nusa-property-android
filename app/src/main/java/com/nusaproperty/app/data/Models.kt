@@ -14,8 +14,11 @@ enum class DocumentStatus {
 }
 
 enum class StepStatus {
+    @SerializedName(value = "COMPLETED", alternate = ["FINISHED", "finished", "completed"])
     COMPLETED,
+    @SerializedName(value = "ACTIVE", alternate = ["active"])
     ACTIVE,
+    @SerializedName(value = "UPCOMING", alternate = ["upcoming"])
     UPCOMING
 }
 
@@ -73,7 +76,7 @@ data class DocumentItem(
     val id: String,
     val title: String,
     val description: String,
-    val status: DocumentStatus,
+    val status: DocumentStatus? = DocumentStatus.REQUIRED,
     @SerializedName(value = "statusLabel", alternate = ["status_label"])
     val statusLabel: String,
     @SerializedName(value = "fileName", alternate = ["file_name"])
@@ -130,7 +133,7 @@ data class StepItem(
     val stepNumber: Int,
     val title: String,
     val subtitle: String,
-    val status: StepStatus,
+    val status: StepStatus? = StepStatus.UPCOMING,
     @SerializedName(value = "statusBadgeText", alternate = ["status_badge_text"])
     val statusBadgeText: String? = null
 )
@@ -156,7 +159,7 @@ data class LoginRequest(
 data class RegisterRequest(
     val email: String,
     val password: String,
-    @SerializedName("fullName")
+    @SerializedName(value = "fullName", alternate = ["full_name"])
     val fullName: String,
     val phone: String? = null
 )
@@ -166,29 +169,29 @@ data class UserProfileData(
     val name: String,
     val greeting: String? = "Halo",
     val subtitle: String? = null,
-    @SerializedName("plafonEstimate")
+    @SerializedName(value = "plafonEstimate", alternate = ["plafon_estimate"])
     val plafonEstimate: Long = 0,
-    @SerializedName("plafonEstimateFormatted")
+    @SerializedName(value = "plafonEstimateFormatted", alternate = ["plafon_estimate_formatted"])
     val plafonEstimateFormatted: String? = null,
-    @SerializedName("financialScore")
+    @SerializedName(value = "financialScore", alternate = ["financial_score"])
     val financialScore: String? = null,
-    @SerializedName("financialScoreGrade")
+    @SerializedName(value = "financialScoreGrade", alternate = ["financial_score_grade"])
     val financialScoreGrade: String? = null
 )
 
 data class UserData(
     val id: String,
     val email: String,
-    @SerializedName("fullName")
+    @SerializedName(value = "fullName", alternate = ["full_name"])
     val fullName: String,
     val phone: String? = null,
     val profile: UserProfileData? = null
 )
 
 data class AuthResponse(
-    @SerializedName("accessToken")
+    @SerializedName(value = "accessToken", alternate = ["access_token"])
     val accessToken: String,
-    @SerializedName("tokenType")
+    @SerializedName(value = "tokenType", alternate = ["token_type"])
     val tokenType: String = "bearer",
     val user: UserData
 )

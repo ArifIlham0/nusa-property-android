@@ -61,7 +61,7 @@ fun PropertyTagBadge(
 
 @Composable
 fun DocumentStatusChip(
-    status: DocumentStatus,
+    status: DocumentStatus?,
     label: String,
     modifier: Modifier = Modifier
 ) {
@@ -69,7 +69,7 @@ fun DocumentStatusChip(
         DocumentStatus.VERIFIED -> Triple(StatusSuccess.copy(alpha = 0.15f), StatusSuccess, Icons.Default.CheckCircle)
         DocumentStatus.UPLOADED -> Triple(StatusInfo.copy(alpha = 0.15f), StatusInfo, Icons.Default.Done)
         DocumentStatus.REQUIRED -> Triple(SecondaryAmber.copy(alpha = 0.20f), SecondaryBrown, Icons.Default.Warning)
-        DocumentStatus.NOT_UPLOADED -> Triple(SurfaceContainer, TextSecondary, null)
+        DocumentStatus.NOT_UPLOADED, null -> Triple(SurfaceContainer, TextSecondary, null)
     }
 
     Row(

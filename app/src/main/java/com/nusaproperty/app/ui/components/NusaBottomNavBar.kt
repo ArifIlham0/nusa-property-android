@@ -58,7 +58,15 @@ fun NusaBottomNavBar(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            for (screen in AppScreen.entries) {
+            val navScreens = remember {
+                listOf(
+                    AppScreen.HOME,
+                    AppScreen.CALCULATOR,
+                    AppScreen.PIPELINE,
+                    AppScreen.STATUS
+                )
+            }
+            for (screen in navScreens) {
                 val isSelected = currentScreen == screen
                 val iconBgColor by animateColorAsState(
                     targetValue = if (isSelected) PrimaryFixed else Color.Transparent,

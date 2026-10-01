@@ -71,9 +71,14 @@ fun AuthScreen(
             isLoading = false
             result.fold(
                 onSuccess = { authResp ->
-                    sessionManager.saveSession(authResp.accessToken, authResp.user)
-                    ApiClient.tokenProvider = { authResp.accessToken }
-                    onAuthSuccess(authResp.user)
+                    val token = authResp.accessToken
+                    if (!token.isNullOrBlank()) {
+                        sessionManager.saveSession(token, authResp.user)
+                        ApiClient.tokenProvider = { token }
+                        onAuthSuccess(authResp.user)
+                    } else {
+                        errorMessage = "Gagal memproses masuk: Token tidak ditemukan."
+                    }
                 },
                 onFailure = { error ->
                     errorMessage = error.localizedMessage ?: "Gagal masuk. Periksa email dan kata sandi Anda."
@@ -98,9 +103,14 @@ fun AuthScreen(
             isLoading = false
             result.fold(
                 onSuccess = { authResp ->
-                    sessionManager.saveSession(authResp.accessToken, authResp.user)
-                    ApiClient.tokenProvider = { authResp.accessToken }
-                    onAuthSuccess(authResp.user)
+                    val token = authResp.accessToken
+                    if (!token.isNullOrBlank()) {
+                        sessionManager.saveSession(token, authResp.user)
+                        ApiClient.tokenProvider = { token }
+                        onAuthSuccess(authResp.user)
+                    } else {
+                        errorMessage = "Pendaftaran berhasil, namun sesi tidak valid."
+                    }
                 },
                 onFailure = { error ->
                     errorMessage = error.localizedMessage ?: "Pendaftaran gagal. Silakan coba kembali."

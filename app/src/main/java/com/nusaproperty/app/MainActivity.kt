@@ -118,9 +118,9 @@ fun NusaPropertyApp() {
     val (topTitle, topSubtitle, canGoBack) = when (currentScreen) {
         AppScreen.HOME -> Triple("NusaProperty", "Home", false)
         AppScreen.PROPERTY -> Triple("Detail Properti", "NusaProperty", true)
-        AppScreen.CALCULATOR -> Triple("NusaProperty", "Kalkulator KPR", true)
-        AppScreen.PIPELINE -> Triple("Upload Berkas", "NusaProperty", true)
-        AppScreen.STATUS -> Triple("Status KPR SP3K", "NusaProperty", true)
+        AppScreen.CALCULATOR -> Triple("NusaProperty", "Kalkulator KPR", false)
+        AppScreen.PIPELINE -> Triple("Upload Berkas", "NusaProperty", false)
+        AppScreen.STATUS -> Triple("Status KPR SP3K", "NusaProperty", false)
     }
 
     val currentDisplayName = currentUser?.fullName ?: "Dimas Nugraha"
@@ -139,10 +139,12 @@ fun NusaPropertyApp() {
             )
         },
         bottomBar = {
-            NusaBottomNavBar(
-                currentScreen = currentScreen,
-                onScreenSelected = { currentScreen = it }
-            )
+            if (currentScreen != AppScreen.PROPERTY) {
+                NusaBottomNavBar(
+                    currentScreen = currentScreen,
+                    onScreenSelected = { currentScreen = it }
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
