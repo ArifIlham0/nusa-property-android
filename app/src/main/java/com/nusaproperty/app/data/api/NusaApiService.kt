@@ -59,7 +59,7 @@ interface NusaApiService {
 }
 
 object ApiClient {
-    const val BASE_URL = "https://4de0-103-121-244-252.ngrok-free.app/"
+    const val BASE_URL = "https://nusaproperty.syndual.cloud/"
 
     var tokenProvider: (() -> String?)? = null
 
