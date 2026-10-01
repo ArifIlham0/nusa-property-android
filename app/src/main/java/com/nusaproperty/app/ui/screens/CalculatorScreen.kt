@@ -24,10 +24,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.nusaproperty.app.data.SampleData
 import com.nusaproperty.app.ui.components.ModernPrimaryButton
 import com.nusaproperty.app.ui.components.PropertyHeroGraphic
 import com.nusaproperty.app.ui.theme.*
+import com.nusaproperty.app.ui.util.CurrencyFormatter
+import com.nusaproperty.app.ui.util.KprCalculator
 
 @Composable
 fun CalculatorScreen(
@@ -41,7 +42,7 @@ fun CalculatorScreen(
     var isSyariah by remember { mutableStateOf(false) }
 
     val calculation = remember(propertyPrice, dpPercent, tenorYears, isSyariah) {
-        SampleData.calculateKpr(propertyPrice, dpPercent, tenorYears, isSyariah)
+        KprCalculator.calculate(propertyPrice, dpPercent, tenorYears, isSyariah)
     }
 
     val scrollState = rememberScrollState()
@@ -230,7 +231,7 @@ fun CalculatorScreen(
                                     modifier = Modifier.padding(end = 8.dp)
                                 )
                                 Text(
-                                    text = SampleData.formatRupiah(propertyPrice).replace("Rp ", ""),
+                                    text = CurrencyFormatter.formatRupiah(propertyPrice).replace("Rp ", ""),
                                     style = MaterialTheme.typography.headlineSmall,
                                     color = TextPrimary,
                                     fontWeight = FontWeight.Bold
@@ -288,7 +289,7 @@ fun CalculatorScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${SampleData.formatRupiah(calculation.dpAmount)} ($dpPercent%)",
+                                text = "${CurrencyFormatter.formatRupiah(calculation.dpAmount)} ($dpPercent%)",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = PrimaryNavy,
                                 fontWeight = FontWeight.Bold
@@ -538,7 +539,7 @@ fun CalculatorScreen(
 
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text(
-                                text = SampleData.formatRupiah(calculation.monthlyInstallment),
+                                text = CurrencyFormatter.formatRupiah(calculation.monthlyInstallment),
                                 style = MaterialTheme.typography.headlineLarge,
                                 color = OnPrimary,
                                 fontWeight = FontWeight.ExtraBold,
@@ -624,7 +625,7 @@ fun CalculatorScreen(
                                                 color = OnPrimaryContainer
                                             )
                                             Text(
-                                                text = SampleData.formatRupiah(calculation.loanAmount),
+                                                text = CurrencyFormatter.formatRupiah(calculation.loanAmount),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 color = OnPrimary,
                                                 fontWeight = FontWeight.Bold
@@ -648,7 +649,7 @@ fun CalculatorScreen(
                                                 color = OnPrimaryContainer
                                             )
                                             Text(
-                                                text = SampleData.formatRupiah(calculation.totalInterest),
+                                                text = CurrencyFormatter.formatRupiah(calculation.totalInterest),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 color = AccentGold,
                                                 fontWeight = FontWeight.Bold
@@ -677,7 +678,7 @@ fun CalculatorScreen(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "${SampleData.formatRupiah(calculation.recommendedMinIncome)}/bln (Rasio angsuran 39% aman DSR perbankan nasional).",
+                                    text = "${CurrencyFormatter.formatRupiah(calculation.recommendedMinIncome)}/bln (Rasio angsuran 39% aman DSR perbankan nasional).",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = OnPrimaryContainer,
                                     lineHeight = 16.sp

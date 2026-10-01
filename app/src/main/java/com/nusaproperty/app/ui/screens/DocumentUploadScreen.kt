@@ -32,8 +32,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nusaproperty.app.data.DocumentItem
 import com.nusaproperty.app.data.DocumentStatus
-import com.nusaproperty.app.data.SampleData
+import com.nusaproperty.app.data.repository.NusaPropertyRepository
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import com.nusaproperty.app.ui.components.DocumentStatusChip
 import com.nusaproperty.app.ui.components.ModernPrimaryButton
 import com.nusaproperty.app.ui.theme.*
@@ -44,8 +50,43 @@ fun DocumentUploadScreen(
     onContactSupport: () -> Unit,
     onShowMessage: (String) -> Unit
 ) {
-    var documents by remember { mutableStateOf(SampleData.initialDocuments) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val repository = remember { NusaPropertyRepository() }
+    var documents by remember { mutableStateOf<List<DocumentItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isUploading by remember { mutableStateOf(false) }
+    var activeDocumentId by remember { mutableStateOf<String?>(null) }
     val scrollState = rememberScrollState()
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        val docId = activeDocumentId
+        if (uri != null && docId != null) {
+            isUploading = true
+            onShowMessage("Mengunggah dokumen ke server...")
+            coroutineScope.launch {
+                val result = repository.uploadDocument(context, docId, uri)
+                isUploading = false
+                result.fold(
+                    onSuccess = { updatedDoc ->
+                        documents = documents.map { if (it.id == updatedDoc.id) updatedDoc else it }
+                        onShowMessage("Berhasil mengunggah ${updatedDoc.title}!")
+                    },
+                    onFailure = { err ->
+                        onShowMessage("Gagal mengunggah berkas: ${err.localizedMessage ?: "Terjadi kesalahan"}")
+                    }
+                )
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        documents = repository.getDocuments()
+        isLoading = false
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "stepperPulse")
     val pulseScale by infiniteTransition.animateFloat(
@@ -283,8 +324,9 @@ fun DocumentUploadScreen(
                         color = PrimaryNavy,
                         fontWeight = FontWeight.Bold
                     )
+                    val uploadedCount = documents.count { it.status == DocumentStatus.UPLOADED || it.status == DocumentStatus.VERIFIED }
                     Text(
-                        text = "2 dari 4 Diunggah",
+                        text = "$uploadedCount dari ${documents.size} Diunggah",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary,
                         modifier = Modifier
@@ -293,266 +335,84 @@ fun DocumentUploadScreen(
                     )
                 }
 
-                DocumentCard(
-                    icon = Icons.Default.Person,
-                    title = "e-KTP & NPWP Pribadi",
-                    subtitle = "Format foto e-KTP & kartu NPWP fisik",
-                    status = DocumentStatus.VERIFIED,
-                    statusLabel = "Terverifikasi",
-                    fileName = "ktp_npwp_final.jpg",
-                    fileSubtitle = "Ditinjau otomatis AI",
-                    actionText = "Lihat Berkas",
-                    onActionClick = { onShowMessage("Melihat berkas: ktp_npwp_final.jpg") }
-                )
-
-                DocumentCard(
-                    icon = Icons.Default.DateRange,
-                    title = "Slip Gaji (3 Bulan Terakhir)",
-                    subtitle = "Slip resmi berstempel perusahaan / e-payslip",
-                    status = DocumentStatus.UPLOADED,
-                    statusLabel = "Upload Berhasil",
-                    fileName = "SlipGaji_Okt-Des2024.pdf",
-                    fileSubtitle = "Ukuran berkas 2.4 MB",
-                    actionText = "Ganti",
-                    onActionClick = { onShowMessage("Pilih file baru untuk Slip Gaji...") }
-                )
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(SurfaceContainerLow, RoundedCornerShape(10.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Home,
-                                        contentDescription = null,
-                                        tint = PrimaryNavy,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Column {
-                                    Text(
-                                        text = "Rekening Koran Operasional",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = TextPrimary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Mutasi buku tabungan bank payroll / operasional",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary
-                                    )
-                                }
-                            }
-                            DocumentStatusChip(
-                                status = DocumentStatus.REQUIRED,
-                                label = "Dibutuhkan"
-                            )
-                        }
-
+                        CircularProgressIndicator(color = PrimaryNavy)
+                    }
+                } else if (documents.isEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceLow),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(SurfaceContainerLow.copy(alpha = 0.7f))
-                                .border(1.5.dp, PrimaryNavy.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-                                .clickable { onShowMessage("Membuka pemilih dokumen/kamera...") }
-                                .padding(vertical = 18.dp, horizontal = 16.dp),
+                                .padding(24.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .background(SurfaceCard, CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Create,
-                                            contentDescription = null,
-                                            tint = PrimaryNavy,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                    Text(text = "+", color = TextSecondary, fontWeight = FontWeight.Bold)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .background(SurfaceCard, CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.Send,
-                                            contentDescription = null,
-                                            tint = PrimaryNavy,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-
-                                Text(
-                                    text = "Pilih file PDF atau foto buku tabungan",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextPrimary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "Format JPG, PNG atau PDF maks 10MB per halaman",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
-                                )
-
-                                Button(
-                                    onClick = { onShowMessage("Memilih berkas rekening koran...") },
-                                    shape = RoundedCornerShape(10.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = PrimaryNavy,
-                                        contentColor = OnPrimary
-                                    ),
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                                    modifier = Modifier.padding(top = 4.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AddCircle,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(text = "Pilih Berkas", style = MaterialTheme.typography.labelMedium)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceCard),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(SurfaceContainerLow, RoundedCornerShape(10.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.DateRange,
-                                        contentDescription = null,
-                                        tint = PrimaryNavy,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Column {
-                                    Text(
-                                        text = "Surat Keterangan Kerja (SK)",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = TextPrimary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Masa kerja minimal 1 tahun karyawan",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary
-                                    )
-                                }
-                            }
-                            DocumentStatusChip(
-                                status = DocumentStatus.NOT_UPLOADED,
-                                label = "Belum Diunggah"
+                            Text(
+                                text = "Tidak ada dokumen yang perlu diunggah saat ini.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
                             )
                         }
-
-                        Row(
+                    }
+                } else {
+                    if (isUploading) {
+                        Card(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = PrimaryFixed.copy(alpha = 0.5f))
                         ) {
                             Row(
+                                modifier = Modifier.padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = null,
-                                    tint = AccentGold,
-                                    modifier = Modifier.size(15.dp)
-                                )
+                                CircularProgressIndicator(color = PrimaryNavy, modifier = Modifier.size(24.dp), strokeWidth = 2.5.dp)
                                 Text(
-                                    text = "Bisa menyusul sebelum akad kredit",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
+                                    text = "Sedang mengunggah dokumen ke server...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = PrimaryNavy,
+                                    fontWeight = FontWeight.SemiBold
                                 )
-                            }
-
-                            FilledTonalButton(
-                                onClick = { onShowMessage("Unggah formulir SK Kerja...") },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = SurfaceContainer,
-                                    contentColor = PrimaryNavy
-                                ),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(text = "Unggah SK", style = MaterialTheme.typography.labelMedium)
-                                }
                             }
                         }
                     }
+
+                    documents.forEach { doc ->
+                        val icon = when {
+                            doc.title.contains("KTP", ignoreCase = true) || doc.title.contains("NPWP", ignoreCase = true) -> Icons.Default.Person
+                            doc.title.contains("Slip", ignoreCase = true) -> Icons.Default.DateRange
+                            doc.title.contains("Rekening", ignoreCase = true) -> Icons.Default.Home
+                            else -> Icons.Default.DateRange
+                        }
+                        DocumentCard(
+                            icon = icon,
+                            title = doc.title,
+                            subtitle = doc.description,
+                            status = doc.status,
+                            statusLabel = doc.statusLabel,
+                            fileName = doc.fileName,
+                            fileSubtitle = doc.fileMeta,
+                            actionText = doc.actionLabel,
+                            onActionClick = {
+                                activeDocumentId = doc.id
+                                filePickerLauncher.launch("*/*")
+                            }
+                        )
+                    }
                 }
+
+
+
+
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -738,8 +598,8 @@ fun DocumentCard(
     subtitle: String,
     status: DocumentStatus,
     statusLabel: String,
-    fileName: String,
-    fileSubtitle: String,
+    fileName: String? = null,
+    fileSubtitle: String? = null,
     actionText: String,
     onActionClick: () -> Unit
 ) {
@@ -821,14 +681,14 @@ fun DocumentCard(
                     }
                     Column {
                         Text(
-                            text = fileName,
+                            text = fileName ?: "Belum ada file diunggah",
                             style = MaterialTheme.typography.labelMedium,
-                            color = TextPrimary,
+                            color = if (fileName != null) TextPrimary else TextSecondary,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
                         )
                         Text(
-                            text = fileSubtitle,
+                            text = fileSubtitle ?: "Format JPG, PNG, atau PDF",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary,
                             fontSize = 11.sp

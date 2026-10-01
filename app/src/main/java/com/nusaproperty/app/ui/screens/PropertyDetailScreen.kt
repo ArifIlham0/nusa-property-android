@@ -34,22 +34,52 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nusaproperty.app.data.PropertyItem
-import com.nusaproperty.app.data.SampleData
+import com.nusaproperty.app.data.repository.NusaPropertyRepository
 import com.nusaproperty.app.ui.components.PropertyHeroGraphic
 import com.nusaproperty.app.ui.theme.*
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun PropertyDetailScreen(
-    property: PropertyItem = SampleData.featuredProperty,
+    property: PropertyItem? = null,
+    propertyId: String? = null,
     onBackClick: () -> Unit = {},
     onSimulateKpr: (Long) -> Unit,
-    onContactAgent: () -> Unit,
+    onContactAgent: () -> Unit = {},
     onShowMessage: (String) -> Unit
 ) {
-    var isFavorite by remember { mutableStateOf(property.isFavorite) }
+    val context = LocalContext.current
+    val repository = remember { NusaPropertyRepository() }
+    val coroutineScope = rememberCoroutineScope()
+    var currentProperty by remember { mutableStateOf(property) }
+    var isFavorite by remember { mutableStateOf(property?.isFavorite ?: false) }
+    var isLoading by remember { mutableStateOf(property == null) }
     val pagerState = rememberPagerState(pageCount = { 3 })
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(property?.id, propertyId) {
+        if (property != null) {
+            currentProperty = property
+            isFavorite = property.isFavorite
+            isLoading = false
+        } else if (propertyId != null) {
+            isLoading = true
+            val fetched = repository.getPropertyById(propertyId)
+            currentProperty = fetched
+            isFavorite = fetched?.isFavorite ?: false
+            isLoading = false
+        } else {
+            isLoading = true
+            val liveProp = repository.getFeaturedProperty()
+            currentProperty = liveProp
+            isFavorite = liveProp?.isFavorite ?: false
+            isLoading = false
+        }
+    }
 
     val galleryTitles = listOf(
         "Fasad Rumah Minimalis Modern",
@@ -57,11 +87,47 @@ fun PropertyDetailScreen(
         "Kamar Tidur Utama Natural"
     )
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SurfaceCanvas)
-    ) {
+    if (isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SurfaceCanvas),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = PrimaryNavy)
+        }
+    } else if (currentProperty == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SurfaceCanvas)
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Data properti tidak ditemukan.",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary
+                )
+                Button(
+                    onClick = onBackClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryNavy)
+                ) {
+                    Text("Kembali")
+                }
+            }
+        }
+    } else {
+        val prop = currentProperty!!
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SurfaceCanvas)
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -123,6 +189,9 @@ fun PropertyDetailScreen(
                     IconButton(
                         onClick = {
                             isFavorite = !isFavorite
+                            coroutineScope.launch {
+                                repository.toggleFavorite(prop.id)
+                            }
                             onShowMessage(if (isFavorite) "Disimpan ke favorit!" else "Dihapus dari favorit")
                         },
                         modifier = Modifier
@@ -213,7 +282,7 @@ fun PropertyDetailScreen(
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Text(
-                                    text = property.developerName,
+                                    text = prop.developerName,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = TextPrimary,
                                     fontWeight = FontWeight.SemiBold
@@ -233,7 +302,7 @@ fun PropertyDetailScreen(
 
                         Column {
                             Text(
-                                text = property.title,
+                                text = prop.title,
                                 style = MaterialTheme.typography.headlineMedium,
                                 color = TextPrimary,
                                 fontWeight = FontWeight.Bold
@@ -250,7 +319,7 @@ fun PropertyDetailScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = property.addressDetail,
+                                    text = prop.addressDetail,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = TextSecondary
                                 )
@@ -260,7 +329,20 @@ fun PropertyDetailScreen(
                                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                                 modifier = Modifier
                                     .padding(top = 4.dp)
-                                    .clickable { onShowMessage("Membuka lokasi di Google Maps...") }
+                                    .clickable {
+                                        val gmapsQuery = Uri.encode("${prop.title}, ${prop.location}")
+                                        val mapIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$gmapsQuery"))
+                                        try {
+                                            context.startActivity(mapIntent)
+                                        } catch (_: Exception) {
+                                            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=$gmapsQuery"))
+                                            try {
+                                                context.startActivity(webIntent)
+                                            } catch (_: Exception) {
+                                                onShowMessage("Membuka lokasi di peta...")
+                                            }
+                                        }
+                                    }
                             ) {
                                 Text(
                                     text = "Lihat di Google Maps",
@@ -292,7 +374,7 @@ fun PropertyDetailScreen(
                                     color = TextSecondary
                                 )
                                 Text(
-                                    text = property.priceFormatted,
+                                    text = prop.priceFormatted,
                                     style = MaterialTheme.typography.headlineSmall,
                                     color = PrimaryNavy,
                                     fontWeight = FontWeight.Bold
@@ -305,7 +387,7 @@ fun PropertyDetailScreen(
                                     color = TextSecondary
                                 )
                                 Text(
-                                    text = property.installmentEstimate,
+                                    text = prop.installmentEstimate,
                                     style = MaterialTheme.typography.titleMedium,
                                     color = StatusSuccess,
                                     fontWeight = FontWeight.Bold
@@ -342,13 +424,13 @@ fun PropertyDetailScreen(
                             SpecCard(
                                 icon = Icons.Default.Home,
                                 label = "Kamar Tidur",
-                                value = "${property.bedrooms} Kamar Tidur",
+                                value = "${prop.bedrooms} Kamar Tidur",
                                 modifier = Modifier.weight(1f)
                             )
                             SpecCard(
                                 icon = Icons.Default.CheckCircle,
                                 label = "Kamar Mandi",
-                                value = "${property.bathrooms} Kamar Mandi",
+                                value = "${prop.bathrooms} Kamar Mandi",
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -359,13 +441,13 @@ fun PropertyDetailScreen(
                             SpecCard(
                                 icon = Icons.Default.LocationOn,
                                 label = "Parkir Mobil",
-                                value = "${property.carports} Carport",
+                                value = "${prop.carports} Carport",
                                 modifier = Modifier.weight(1f)
                             )
                             SpecCard(
                                 icon = Icons.Default.Home,
                                 label = "Luas Bangunan/Tanah",
-                                value = "LB ${property.buildingArea}m² / LT ${property.surfaceArea}m²",
+                                value = "LB ${prop.buildingArea}m² / LT ${prop.surfaceArea}m²",
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -376,13 +458,13 @@ fun PropertyDetailScreen(
                             SpecCard(
                                 icon = Icons.Default.Star,
                                 label = "Kapasitas Listrik",
-                                value = "Daya: ${property.electricityVa} VA",
+                                value = "Daya: ${prop.electricityVa} VA",
                                 modifier = Modifier.weight(1f)
                             )
                             SpecCard(
                                 icon = Icons.Default.CheckCircle,
                                 label = "Legalitas Tanah",
-                                value = "Sertifikat: ${property.certificateType}",
+                                value = "Sertifikat: ${prop.certificateType}",
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -530,7 +612,15 @@ fun PropertyDetailScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
-                    onClick = onContactAgent,
+                    onClick = {
+                        val message = Uri.encode("Halo Tim NusaProperty, saya tertarik dengan unit *${prop.title}* di ${prop.location}. Boleh minta info brosur dan jadwal survei lokasi?")
+                        val waIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/6281234567890?text=$message"))
+                        try {
+                            context.startActivity(waIntent)
+                        } catch (_: Exception) {
+                            onContactAgent()
+                        }
+                    },
                     modifier = Modifier.height(52.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -552,7 +642,7 @@ fun PropertyDetailScreen(
                 }
 
                 Button(
-                    onClick = { onSimulateKpr(property.price) },
+                    onClick = { onSimulateKpr(prop.price) },
                     modifier = Modifier
                         .weight(1f)
                         .height(52.dp),
@@ -576,6 +666,7 @@ fun PropertyDetailScreen(
                 }
             }
         }
+    }
     }
 }
 

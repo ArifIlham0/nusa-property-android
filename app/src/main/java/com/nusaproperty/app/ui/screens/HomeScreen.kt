@@ -33,21 +33,38 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nusaproperty.app.data.PropertyItem
-import com.nusaproperty.app.data.SampleData
+import com.nusaproperty.app.data.repository.NusaPropertyRepository
 import com.nusaproperty.app.ui.components.PropertyHeroGraphic
 import com.nusaproperty.app.ui.components.PropertyTagBadge
 import com.nusaproperty.app.ui.theme.*
+import com.nusaproperty.app.data.UserProfileData
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
+    userName: String = "Dimas Nugraha",
     onNavigateToCalculator: () -> Unit,
     onNavigateToPipeline: () -> Unit,
-    onNavigateToProperty: () -> Unit,
+    onNavigateToProperty: (PropertyItem?) -> Unit,
     onNavigateToStatus: () -> Unit,
     onShowMessage: (String) -> Unit
 ) {
-    var properties by remember { mutableStateOf(SampleData.sampleProperties) }
+    val repository = remember { NusaPropertyRepository() }
+    val coroutineScope = rememberCoroutineScope()
+    var properties by remember { mutableStateOf<List<PropertyItem>>(emptyList()) }
+    var userProfile by remember { mutableStateOf<UserProfileData?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        properties = repository.getProperties()
+        val prof = repository.getUserProfile()
+        if (prof != null) {
+            userProfile = prof
+        }
+        isLoading = false
+    }
 
     Column(
         modifier = Modifier
@@ -65,14 +82,14 @@ fun HomeScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Halo, Dimas Nugraha",
+                    text = "Halo, $userName",
                     style = MaterialTheme.typography.headlineMedium,
                     color = TextPrimary,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.5).sp
                 )
                 Text(
-                    text = "Selamat pagi, wujudkan rumah impianmu hari ini.",
+                    text = userProfile?.subtitle ?: "Selamat pagi, wujudkan rumah impianmu hari ini.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 2.dp)
@@ -178,7 +195,7 @@ fun HomeScreen(
                             color = PrimaryFixedDim
                         )
                         Text(
-                            text = "Rp 650.000.000",
+                            text = userProfile?.plafonEstimateFormatted ?: "Rp 650.000.000",
                             style = MaterialTheme.typography.headlineLarge,
                             color = OnPrimary,
                             fontWeight = FontWeight.ExtraBold,
@@ -201,7 +218,7 @@ fun HomeScreen(
                                 color = PrimaryFixed
                             )
                             Text(
-                                text = "Sangat Baik (A+)",
+                                text = userProfile?.financialScore ?: "Sangat Baik (A+)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = AccentGold,
                                 fontWeight = FontWeight.Bold
@@ -266,7 +283,7 @@ fun HomeScreen(
                 icon = Icons.Default.LocationOn,
                 bgColor = TertiaryFixed.copy(alpha = 0.7f),
                 iconColor = TertiaryTeal,
-                onClick = onNavigateToProperty
+                onClick = { onNavigateToProperty(properties.firstOrNull()) }
             )
             QuickActionItem(
                 title = "Konsultasi Agen",
@@ -291,7 +308,7 @@ fun HomeScreen(
                 fontWeight = FontWeight.Bold
             )
             TextButton(
-                onClick = onNavigateToProperty,
+                onClick = { onNavigateToProperty(properties.firstOrNull()) },
                 contentPadding = PaddingValues(0.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -311,25 +328,64 @@ fun HomeScreen(
             }
         }
 
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            items(properties, key = { it.id }) { property ->
-                PropertyCard(
-                    property = property,
-                    onPropertyClick = onNavigateToProperty,
-                    onToggleFavorite = {
-                        properties = properties.map {
-                            if (it.id == property.id) it.copy(isFavorite = !it.isFavorite) else it
-                        }
-                        onShowMessage(
-                            if (!property.isFavorite) "Disimpan ke favorit: ${property.title}"
-                            else "Dihapus dari favorit"
-                        )
-                    }
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = PrimaryNavy,
+                    modifier = Modifier.size(36.dp)
                 )
+            }
+        } else if (properties.isEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceLow),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Belum ada cluster properti yang tersedia.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                }
+            }
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(properties, key = { it.id }) { property ->
+                    PropertyCard(
+                        property = property,
+                        onPropertyClick = { onNavigateToProperty(property) },
+                        onToggleFavorite = {
+                            val targetFav = !property.isFavorite
+                            properties = properties.map {
+                                if (it.id == property.id) it.copy(isFavorite = targetFav) else it
+                            }
+                            coroutineScope.launch {
+                                repository.toggleFavorite(property.id)
+                            }
+                            onShowMessage(
+                                if (targetFav) "Disimpan ke favorit: ${property.title}"
+                                else "Dihapus dari favorit"
+                            )
+                        }
+                    )
+                }
             }
         }
 

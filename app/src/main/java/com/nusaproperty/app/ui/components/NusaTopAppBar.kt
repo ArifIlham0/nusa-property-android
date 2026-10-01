@@ -28,6 +28,7 @@ fun NusaTopAppBar(
     title: String,
     subtitle: String,
     showBackButton: Boolean = false,
+    userName: String = "Dimas Nugraha",
     onBackClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {},
     onProfileClick: () -> Unit = {}
@@ -136,16 +137,35 @@ fun NusaTopAppBar(
                     )
                 }
 
-                Image(
-                    painter = painterResource(id = R.drawable.avatar_dimas),
-                    contentDescription = "Profil Dimas Nugraha",
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .border(1.5.dp, PrimaryFixed, CircleShape)
-                        .clickable { onProfileClick() },
-                    contentScale = ContentScale.Crop
-                )
+                if (userName.contains("Dimas", ignoreCase = true)) {
+                    Image(
+                        painter = painterResource(id = R.drawable.avatar_dimas),
+                        contentDescription = "Profil $userName",
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .border(1.5.dp, PrimaryFixed, CircleShape)
+                            .clickable { onProfileClick() },
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryNavy)
+                            .border(1.5.dp, PrimaryFixed, CircleShape)
+                            .clickable { onProfileClick() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = userName.firstOrNull()?.uppercaseChar()?.toString() ?: "U",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = OnPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }

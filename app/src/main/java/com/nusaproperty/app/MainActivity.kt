@@ -10,16 +10,24 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nusaproperty.app.data.NotificationItem
+import com.nusaproperty.app.data.PropertyItem
+import com.nusaproperty.app.data.SessionManager
+import com.nusaproperty.app.data.api.ApiClient
+import com.nusaproperty.app.data.repository.NusaPropertyRepository
 import com.nusaproperty.app.ui.components.AppScreen
 import com.nusaproperty.app.ui.components.NusaBottomNavBar
 import com.nusaproperty.app.ui.components.NusaTopAppBar
 import com.nusaproperty.app.ui.screens.*
 import com.nusaproperty.app.ui.theme.NusaPropertyAndroidTheme
 import com.nusaproperty.app.ui.theme.PrimaryNavy
+import com.nusaproperty.app.ui.theme.TextPrimary
+import com.nusaproperty.app.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -37,14 +45,39 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun NusaPropertyApp() {
     val context = LocalContext.current
+    val repository = remember { NusaPropertyRepository() }
+    val sessionManager = remember { SessionManager.getInstance(context) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
+    var currentUser by remember { mutableStateOf(sessionManager.getUser()) }
+    var isLoggedIn by remember { mutableStateOf(sessionManager.isLoggedIn()) }
+    var showProfileScreen by remember { mutableStateOf(false) }
+
     var currentScreen by remember { mutableStateOf(AppScreen.HOME) }
+    var selectedProperty by remember { mutableStateOf<PropertyItem?>(null) }
     var calculatorPrice by remember { mutableLongStateOf(450_000_000L) }
+    var activeSp3kRegNumber by remember { mutableStateOf("KPR-2026-NUSA-0918") }
+
     var showInfoDialog by remember { mutableStateOf(false) }
     var showAkadDialog by remember { mutableStateOf(false) }
     var showDownloadDialog by remember { mutableStateOf(false) }
     var showNotificationDialog by remember { mutableStateOf(false) }
+
+    var notifications by remember { mutableStateOf<List<NotificationItem>>(emptyList()) }
+    var isLoadingNotifications by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        ApiClient.tokenProvider = { sessionManager.getToken() }
+    }
+
+    LaunchedEffect(showNotificationDialog) {
+        if (showNotificationDialog) {
+            isLoadingNotifications = true
+            notifications = repository.getNotifications()
+            isLoadingNotifications = false
+        }
+    }
 
     fun showMessage(msg: String) {
         coroutineScope.launch {
@@ -55,13 +88,42 @@ fun NusaPropertyApp() {
         }
     }
 
+    // 1. If not logged in, show AuthScreen
+    if (!isLoggedIn) {
+        AuthScreen(
+            onAuthSuccess = { user ->
+                currentUser = user
+                isLoggedIn = true
+                showMessage("Selamat datang, ${user.fullName}!")
+            }
+        )
+        return
+    }
+
+    // 2. If profile screen requested
+    if (showProfileScreen) {
+        ProfileScreen(
+            user = currentUser,
+            onBackClick = { showProfileScreen = false },
+            onLogout = {
+                isLoggedIn = false
+                currentUser = null
+                showProfileScreen = false
+                showMessage("Berhasil keluar dari akun")
+            }
+        )
+        return
+    }
+
     val (topTitle, topSubtitle, canGoBack) = when (currentScreen) {
         AppScreen.HOME -> Triple("NusaProperty", "Home", false)
-        AppScreen.PROPERTY -> Triple("Property Detail", "NusaProperty", true)
-        AppScreen.CALCULATOR -> Triple("NusaProperty", "Calculator", true)
-        AppScreen.PIPELINE -> Triple("Document Upload", "NusaProperty", true)
-        AppScreen.STATUS -> Triple("Sp3K Review", "NusaProperty", true)
+        AppScreen.PROPERTY -> Triple("Detail Properti", "NusaProperty", true)
+        AppScreen.CALCULATOR -> Triple("NusaProperty", "Kalkulator KPR", true)
+        AppScreen.PIPELINE -> Triple("Upload Berkas", "NusaProperty", true)
+        AppScreen.STATUS -> Triple("Status KPR SP3K", "NusaProperty", true)
     }
+
+    val currentDisplayName = currentUser?.fullName ?: "Dimas Nugraha"
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -70,9 +132,10 @@ fun NusaPropertyApp() {
                 title = topTitle,
                 subtitle = topSubtitle,
                 showBackButton = canGoBack,
+                userName = currentDisplayName,
                 onBackClick = { currentScreen = AppScreen.HOME },
                 onNotificationClick = { showNotificationDialog = true },
-                onProfileClick = { showMessage("Profil pengguna: Dimas Nugraha") }
+                onProfileClick = { showProfileScreen = true }
             )
         },
         bottomBar = {
@@ -94,17 +157,22 @@ fun NusaPropertyApp() {
             ) { screen ->
                 when (screen) {
                     AppScreen.HOME -> HomeScreen(
+                        userName = currentDisplayName,
                         onNavigateToCalculator = {
                             calculatorPrice = 450_000_000L
                             currentScreen = AppScreen.CALCULATOR
                         },
                         onNavigateToPipeline = { currentScreen = AppScreen.PIPELINE },
-                        onNavigateToProperty = { currentScreen = AppScreen.PROPERTY },
+                        onNavigateToProperty = { prop ->
+                            selectedProperty = prop
+                            currentScreen = AppScreen.PROPERTY
+                        },
                         onNavigateToStatus = { currentScreen = AppScreen.STATUS },
                         onShowMessage = ::showMessage
                     )
 
                     AppScreen.PROPERTY -> PropertyDetailScreen(
+                        property = selectedProperty,
                         onBackClick = { currentScreen = AppScreen.HOME },
                         onSimulateKpr = { price ->
                             calculatorPrice = price
@@ -138,18 +206,30 @@ fun NusaPropertyApp() {
                     )
 
                     AppScreen.STATUS -> ApprovalStatusScreen(
-                        onScheduleAkad = { showAkadDialog = true },
-                        onDownloadPdf = { showDownloadDialog = true },
-                        onCallAdvisor = {
-                            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:081234567890"))
+                        onScheduleAkad = { regNo ->
+                            activeSp3kRegNumber = regNo
+                            showAkadDialog = true
+                        },
+                        onDownloadPdf = { regNo ->
+                            activeSp3kRegNumber = regNo
+                            showDownloadDialog = true
+                        },
+                        onCallAdvisor = { phone ->
+                            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
                             try {
                                 context.startActivity(intent)
                             } catch (_: Exception) {
-                                showMessage("Menghubungi advisor: 081234567890")
+                                showMessage("Menghubungi advisor: $phone")
                             }
                         },
-                        onChatAdvisor = {
-                            showMessage("Membuka chat WhatsApp advisor Rian Anggara...")
+                        onChatAdvisor = { phone ->
+                            val cleanPhone = if (phone.startsWith("0")) "62" + phone.substring(1) else phone
+                            val waIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$cleanPhone?text=Halo%20Advisor,%20saya%20ingin%20konsultasi%20terkait%20jadwal%20akad%20KPR."))
+                            try {
+                                context.startActivity(waIntent)
+                            } catch (_: Exception) {
+                                showMessage("Membuka chat WhatsApp advisor ($phone)...")
+                            }
                         }
                     )
                 }
@@ -194,7 +274,7 @@ fun NusaPropertyApp() {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Pilih waktu penandatanganan akad kredit basah di Bank Mandiri Cabang Cikarang:")
+                    Text("Pilih waktu penandatanganan akad kredit basah untuk No: $activeSp3kRegNumber:")
                     OutlinedCard(
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -210,6 +290,13 @@ fun NusaPropertyApp() {
                 Button(
                     onClick = {
                         showAkadDialog = false
+                        coroutineScope.launch {
+                            repository.scheduleAkad(
+                                registrationNumber = activeSp3kRegNumber,
+                                date = "Senin, 6 Oktober 2026 10:00 - 11:30 WIB",
+                                location = "KC Bank Mandiri Cikarang City Walk"
+                            )
+                        }
                         showMessage("Jadwal akad berhasil dikonfirmasi! Notifikasi dikirimkan.")
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryNavy)
@@ -236,17 +323,22 @@ fun NusaPropertyApp() {
                 )
             },
             text = {
-                Text("Surat Penegasan Persetujuan Penyediaan Kredit (SP3K) resmi dengan nomor KPR-2026-NUSA-0918 siap diunduh dalam format PDF resmi bertanda tangan digital.")
+                Text("Surat Penegasan Persetujuan Penyediaan Kredit (SP3K) resmi dengan nomor $activeSp3kRegNumber siap diunduh dalam format PDF resmi bertanda tangan digital.")
             },
             confirmButton = {
                 Button(
                     onClick = {
                         showDownloadDialog = false
-                        showMessage("Mengunduh SP3K_KPR-2026-NUSA-0918.pdf...")
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("${ApiClient.BASE_URL}api/sp3k/pdf"))
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            showMessage("Mengunduh SP3K_${activeSp3kRegNumber}.pdf...")
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryNavy)
                 ) {
-                    Text("Unduh PDF (1.8 MB)")
+                    Text("Unduh PDF")
                 }
             },
             dismissButton = {
@@ -268,17 +360,47 @@ fun NusaPropertyApp() {
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("🎉 Selamat! Pengajuan KPR untuk Cluster Botanical A-12 telah disetujui bank.")
-                    HorizontalDivider()
-                    Text("📄 Dokumen e-KTP & NPWP Anda telah tervalidasi 100% oleh sistem.")
-                    HorizontalDivider()
-                    Text("💡 Tips baru: Simak simulasi angsuran terbaru di fitur Kalkulator.")
+                if (isLoadingNotifications) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = PrimaryNavy)
+                    }
+                } else if (notifications.isEmpty()) {
+                    Text(
+                        text = "Belum ada notifikasi baru.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        notifications.forEachIndexed { index, notif ->
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = notif.title,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = notif.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
+                            if (index < notifications.size - 1) {
+                                HorizontalDivider()
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showNotificationDialog = false }) {
-                    Text("Tutup", color = PrimaryNavy)
+                    Text("Tutup", color = PrimaryNavy, fontWeight = FontWeight.Bold)
                 }
             }
         )

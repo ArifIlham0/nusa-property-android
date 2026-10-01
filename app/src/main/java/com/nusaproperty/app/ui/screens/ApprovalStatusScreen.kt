@@ -23,7 +23,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,30 +33,81 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.nusaproperty.app.data.SampleData
 import com.nusaproperty.app.data.Sp3kDetails
+import com.nusaproperty.app.data.repository.NusaPropertyRepository
 import com.nusaproperty.app.ui.components.ModernPrimaryButton
 import com.nusaproperty.app.ui.components.ModernSecondaryButton
+import com.nusaproperty.app.data.StepStatus
 import com.nusaproperty.app.ui.theme.*
+import com.nusaproperty.app.ui.util.CurrencyFormatter
 
 @Composable
 fun ApprovalStatusScreen(
-    sp3k: Sp3kDetails = SampleData.sampleSp3k,
-    onScheduleAkad: () -> Unit,
-    onDownloadPdf: () -> Unit,
-    onCallAdvisor: () -> Unit,
-    onChatAdvisor: () -> Unit
+    sp3k: Sp3kDetails? = null,
+    onScheduleAkad: (String) -> Unit = {},
+    onDownloadPdf: (String) -> Unit = {},
+    onCallAdvisor: (String) -> Unit = {},
+    onChatAdvisor: (String) -> Unit = {}
 ) {
+    val repository = remember { NusaPropertyRepository() }
+    var currentSp3k by remember { mutableStateOf(sp3k) }
+    var isLoading by remember { mutableStateOf(sp3k == null) }
     val scrollState = rememberScrollState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SurfaceCanvas)
-            .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    LaunchedEffect(Unit) {
+        if (sp3k != null) {
+            currentSp3k = sp3k
+            isLoading = false
+        } else {
+            isLoading = true
+            currentSp3k = repository.getSp3kDetails()
+            isLoading = false
+        }
+    }
+
+    if (isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SurfaceCanvas),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = PrimaryNavy)
+        }
+    } else if (currentSp3k == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SurfaceCanvas)
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Data SP3K belum tersedia.",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "Pengajuan KPR Anda sedang diproses oleh pihak bank rekanan.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+        }
+    } else {
+        val sp3kData = currentSp3k!!
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SurfaceCanvas)
+                .verticalScroll(scrollState)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
@@ -289,7 +340,7 @@ fun ApprovalStatusScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "No: ${sp3k.registrationNumber}",
+                                text = "No: ${sp3kData.registrationNumber}",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = TextPrimary,
                                 fontWeight = FontWeight.Bold
@@ -331,14 +382,14 @@ fun ApprovalStatusScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("Developer Mitra:", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                            Text(sp3k.developer, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                            Text(sp3kData.developer, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("Unit Terpilih:", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                            Text(sp3k.unitName, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                            Text(sp3kData.unitName, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
                         }
                     }
                 }
@@ -371,7 +422,7 @@ fun ApprovalStatusScreen(
                             )
                         }
                         Text(
-                            text = SampleData.formatRupiah(sp3k.approvedAmount),
+                            text = CurrencyFormatter.formatRupiah(sp3kData.approvedAmount),
                             style = MaterialTheme.typography.headlineLarge,
                             color = OnPrimary,
                             fontWeight = FontWeight.ExtraBold
@@ -398,7 +449,7 @@ fun ApprovalStatusScreen(
                         )
                         MetricCard(
                             label = "Angsuran Bulanan",
-                            value = SampleData.formatRupiah(sp3k.monthlyInstallment),
+                            value = CurrencyFormatter.formatRupiah(sp3kData.monthlyInstallment),
                             sub = "Estimasi Flat",
                             subColor = TextSecondary,
                             modifier = Modifier.weight(1f)
@@ -410,14 +461,14 @@ fun ApprovalStatusScreen(
                     ) {
                         MetricCard(
                             label = "Tenor Pinjaman",
-                            value = "${sp3k.tenorYears} Tahun",
-                            sub = "(${sp3k.tenorYears * 12} Bulan)",
+                            value = "${sp3kData.tenorYears} Tahun",
+                            sub = "(${sp3kData.tenorYears * 12} Bulan)",
                             subColor = TextSecondary,
                             modifier = Modifier.weight(1f)
                         )
                         MetricCard(
                             label = "Uang Muka (DP)",
-                            value = SampleData.formatRupiah(sp3k.dpPaid),
+                            value = CurrencyFormatter.formatRupiah(sp3kData.dpPaid),
                             sub = "Lunas Terverifikasi",
                             subColor = StatusSuccess,
                             modifier = Modifier.weight(1f)
@@ -455,31 +506,59 @@ fun ApprovalStatusScreen(
                     )
                 }
 
-                TimelineStepRow(
-                    stepNumber = 1,
-                    title = "Verifikasi Data & Dokumen Akhir",
-                    desc = "Seluruh berkas finansial dan identitas telah tervalidasi oleh analis kredit perbankan.",
-                    status = StepStatusType.FINISHED,
-                    badgeText = "Selesai"
-                )
+                if (sp3kData.steps.isNotEmpty()) {
+                    sp3kData.steps.forEach { step ->
+                        val stepStatus = when (step.status) {
+                            StepStatus.COMPLETED -> StepStatusType.FINISHED
+                            StepStatus.ACTIVE -> StepStatusType.ACTIVE
+                            StepStatus.UPCOMING -> StepStatusType.UPCOMING
+                        }
+                        TimelineStepRow(
+                            stepNumber = step.stepNumber,
+                            title = step.title,
+                            desc = step.subtitle,
+                            status = stepStatus,
+                            badgeText = step.statusBadgeText ?: when (stepStatus) {
+                                StepStatusType.FINISHED -> "Selesai"
+                                StepStatusType.ACTIVE -> "Langkah Selanjutnya"
+                                StepStatusType.UPCOMING -> "Menunggu Akad"
+                            }
+                        )
+                    }
+                } else {
+                    TimelineStepRow(
+                        stepNumber = 1,
+                        title = "Verifikasi Data & Dokumen Akhir",
+                        desc = "Seluruh berkas finansial dan identitas telah tervalidasi oleh analis kredit perbankan.",
+                        status = StepStatusType.FINISHED,
+                        badgeText = "Selesai"
+                    )
 
-                TimelineStepRow(
-                    stepNumber = 2,
-                    title = "Pemilihan Jadwal Akad Kredit",
-                    desc = "Pilih tanggal dan lokasi kantor cabang bank atau notaris untuk tanda tangan basah.",
-                    status = StepStatusType.ACTIVE,
-                    badgeText = "Langkah Selanjutnya"
-                )
+                    TimelineStepRow(
+                        stepNumber = 2,
+                        title = "Pemilihan Jadwal Akad Kredit",
+                        desc = "Pilih tanggal dan lokasi kantor cabang bank atau notaris untuk tanda tangan basah.",
+                        status = StepStatusType.ACTIVE,
+                        badgeText = "Langkah Selanjutnya"
+                    )
 
-                TimelineStepRow(
-                    stepNumber = 3,
-                    title = "Pembayaran Biaya Administrasi & Notaris",
-                    desc = "Pelunasan biaya asuransi jiwa, kebakaran, dan legalitas notaris di hari penandatanganan.",
-                    status = StepStatusType.UPCOMING,
-                    badgeText = "Menunggu Akad"
-                )
+                    TimelineStepRow(
+                        stepNumber = 3,
+                        title = "Pembayaran Biaya Administrasi & Notaris",
+                        desc = "Pelunasan biaya asuransi jiwa, kebakaran, dan legalitas notaris di hari penandatanganan.",
+                        status = StepStatusType.UPCOMING,
+                        badgeText = "Menunggu Akad"
+                    )
+                }
             }
         }
+
+        val advisor = sp3kData.advisor
+        val advisorName = advisor?.name ?: "Rian Anggara"
+        val advisorRole = advisor?.role ?: "Senior Mortgage Advisor"
+        val advisorBank = advisor?.bank ?: "Bank Mandiri Rekanan"
+        val advisorPhone = advisor?.phone ?: "081234567890"
+        val isAdvisorOnline = advisor?.isOnline ?: true
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -510,12 +589,12 @@ fun ApprovalStatusScreen(
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
-                                .background(StatusSuccess, CircleShape)
+                                .background(if (isAdvisorOnline) StatusSuccess else TextSecondary, CircleShape)
                         )
                         Text(
-                            text = "Online",
+                            text = if (isAdvisorOnline) "Online" else "Offline",
                             style = MaterialTheme.typography.labelSmall,
-                            color = StatusSuccess,
+                            color = if (isAdvisorOnline) StatusSuccess else TextSecondary,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -546,18 +625,18 @@ fun ApprovalStatusScreen(
                         }
                         Column {
                             Text(
-                                text = "Rian Anggara",
+                                text = advisorName,
                                 style = MaterialTheme.typography.titleMedium,
                                 color = TextPrimary,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Senior Mortgage Advisor",
+                                text = advisorRole,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
                             Text(
-                                text = "Bank Mandiri Rekanan",
+                                text = advisorBank,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = PrimaryNavy,
                                 fontWeight = FontWeight.SemiBold
@@ -567,7 +646,7 @@ fun ApprovalStatusScreen(
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconButton(
-                            onClick = onCallAdvisor,
+                            onClick = { onCallAdvisor(advisorPhone) },
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(SurfaceContainer, CircleShape)
@@ -580,7 +659,7 @@ fun ApprovalStatusScreen(
                             )
                         }
                         IconButton(
-                            onClick = onChatAdvisor,
+                            onClick = { onChatAdvisor(advisorPhone) },
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(StatusSuccess.copy(alpha = 0.15f), CircleShape)
@@ -603,13 +682,13 @@ fun ApprovalStatusScreen(
         ) {
             ModernPrimaryButton(
                 text = "Pilih Jadwal Akad Kredit",
-                onClick = onScheduleAkad,
+                onClick = { onScheduleAkad(sp3kData.registrationNumber) },
                 leadingIcon = Icons.Default.DateRange
             )
 
             ModernSecondaryButton(
                 text = "Unduh Surat Penawaran Kredit (SP3K / PDF)",
-                onClick = onDownloadPdf,
+                onClick = { onDownloadPdf(sp3kData.registrationNumber) },
                 leadingIcon = Icons.Default.ArrowDropDown
             )
 
@@ -634,6 +713,7 @@ fun ApprovalStatusScreen(
                 )
             }
         }
+    }
     }
 }
 
